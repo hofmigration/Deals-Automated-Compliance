@@ -54,10 +54,11 @@ Date)" vs "Postponed"). Stages are matched on the **normalised label**, so both 
 |---|---|
 | **Close date** | Must not be in the past. **Deal Lost is exempt.** |
 | **Reason** | Postponed and Deal Lost must have a Won/Postponed/Lost reason, and it must **not** be `Opportunity`. |
-| **Follow-up task** | Required in every stage **except Deal Lost**. Our `[Compliance]` tasks don't count. |
+| **Follow-up task** | An **open** task must be scheduled in every stage **except Deal Lost**. A completed task does not count, and an open task overdue by more than 2 days is flagged separately. Our `[Compliance]` tasks never count. |
 | **Client details note** | A separate note with full client details (age, education, experience, family, reason). Free-form, so judged on substance. |
 | **Proof of payment** | Required on **Payment Made/Deal Won** — the fee note with figures. |
 | **Connected call** | Must have a brief description, and an **email** logged after it. **No WhatsApp needed.** |
+| **WhatsApp timing** | When required, it must arrive within **24h** of the call. Spelling check is off. |
 | **Not reached** (No answer, Busy, Left voicemail, Left live message, Wrong number) | Needs an **email AND a WhatsApp** logged after the call. |
 | **Call logged** | A deal with no call logged at all is flagged. |
 | **Marketing properties** | Contact Outcome must be `Deal Created`; Age Range marked (deal or contact); Nationality marked (contact). |
