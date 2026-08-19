@@ -166,6 +166,10 @@ const SETTINGS = {
   CLOSEDATE_SKIP_STAGES: ["LOST"],
   // Follow-up task required in every stage EXCEPT these:
   TASK_SKIP_STAGES: ["LOST"],
+  // A completed task is not a scheduled follow-up. Also flag when every open task is
+  // overdue by more than the grace period (set CHECK_TASK_OVERDUE false to ignore).
+  CHECK_TASK_OVERDUE: true,
+  TASK_OVERDUE_GRACE_DAYS: 2,
   // Won/Postponed/Lost reason required in these stages, and must not be "Opportunity":
   REASON_REQUIRED_STAGES: ["POSTPONED", "LOST"],
   REASON_FORBIDDEN: ["Opportunity"],
@@ -173,6 +177,11 @@ const SETTINGS = {
   DETAILS_NOTE_SKIP_STAGES: ["LOST"],
   // Proof of payment note required in:
   PAYMENT_PROOF_STAGES: ["WON"],
+
+  // Stages where the deal is still being pursued. Script 10 reads the client's own
+  // WhatsApp / email / call text and flags a deal still sitting here after the client
+  // has said they cannot proceed.
+  ACTIVE_STAGES: ["QUALIFIED", "CCL_SENT", "ROLLOVER", "EXPECTED_SALE"],
 
   // Call outcomes that mean the client was actually reached.
   REACHED_OUTCOMES: ["Connected", "Meeting booked"],
@@ -192,6 +201,7 @@ const SETTINGS = {
   CHECK_COMMS: true,
   CHECK_MARKETING: true,
   CHECK_PIPELINE_MATCH: true,     // AI: is the pipeline right for what was discussed
+  CHECK_CLIENT_INTENT: true,      // AI: client said they cannot proceed but deal is still active
   CHECK_CALL_DESCRIPTION: true,
 
   // Safety net: if a whole run reads ZERO WhatsApp messages while many deals needed
