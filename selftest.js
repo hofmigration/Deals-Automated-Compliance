@@ -128,6 +128,9 @@ const SCENARIOS = [
   // --- stage normalisation ---
   ["Expected Sale and Expected Sales both map", null, "STAGEMAP"],
 
+  // --- the built-in stage map must resolve every sales stage id ---
+  ["built-in stage ids all resolve", null, "STAGEIDS"],
+
   // --- broken lookups must never accuse anyone ---
   ["broken task lookup stays silent", good({ available: { ...OK, tasks: false }, tasks: [] }), "!follow-up task"],
   ["broken notes lookup stays silent", good({ available: { ...OK, notes: false }, notes: [] }), "!client details"],
@@ -140,6 +143,16 @@ const SCENARIOS = [
   console.log(`DEAL RULES SELF-TEST — ${SCENARIOS.length} scenarios\n`);
 
   for (const [label, d, must] of SCENARIOS) {
+    if (must === "STAGEIDS") {
+      const src = require("fs").readFileSync("./1-fetch-deals.js", "utf8");
+      const block = src.slice(src.indexOf("const STANDARD_STAGES"), src.indexOf("};", src.indexOf("const STANDARD_STAGES")));
+      const pairs = [...block.matchAll(/"(\d+)":\s*"([^"]+)"/g)];
+      const keys = new Set(pairs.map(([, , label]) => stageKey(label)));
+      const ok = pairs.length === 14 && keys.size === 7 && !keys.has(null);
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label} (${pairs.length} ids -> ${keys.size} stages)`);
+      ok ? pass++ : fail++;
+      continue;
+    }
     if (must === "STAGEMAP") {
       const ok = stageKey("Expected Sale") === "EXPECTED_SALE" && stageKey("Expected Sales") === "EXPECTED_SALE"
         && stageKey("Postpone (No Specific Date)") === "POSTPONED" && stageKey("Postponed") === "POSTPONED"
