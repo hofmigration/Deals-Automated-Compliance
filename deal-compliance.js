@@ -69,7 +69,7 @@ async function main() {
 
   const flagged = [];
   let audited = 0, skippedStage = 0, waSeen = 0, waExpected = 0, commSeen = 0;
-  const channelTally = {}, stageTally = {};
+  const channelTally = {}, stageTally = {}, unresolved = {};
 
   for (const raw of deals) {
     if (SETTINGS.LIMIT && audited >= SETTINGS.LIMIT) break;
@@ -78,7 +78,12 @@ async function main() {
     try { d = await attach(raw, L); }
     catch (e) { console.log(`fetch error ${raw.id}: ${e.message}`); continue; }
 
-    if (!d.stage) { skippedStage++; continue; }                       // not a sales stage
+    if (!d.stage) {                                                   // not a sales stage
+      skippedStage++;
+      const key = `${d.stageLabel}`;
+      unresolved[key] = (unresolved[key] || 0) + 1;
+      continue;
+    }
     if (SETTINGS.ONLY_STAGE && d.stage !== SETTINGS.ONLY_STAGE) { skippedStage++; continue; }
     audited++;
     stageTally[STAGE_NAME[d.stage]] = (stageTally[STAGE_NAME[d.stage]] || 0) + 1;
@@ -142,6 +147,13 @@ async function main() {
 
   console.log(`\n===== SUMMARY =====`);
   console.log(`Deals in window ${deals.length} | not a sales stage ${skippedStage} | audited ${audited} | FLAGGED ${flagged.length}`);
+  if (skippedStage) {
+    const top = Object.entries(unresolved).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    console.log(`\nSkipped stage values (top ${top.length}):`);
+    for (const [v, n] of top) console.log(`  ${String(n).padStart(4)}  ${v}`);
+    if (audited === 0)
+      console.log(`\n!! NOTHING WAS AUDITED. If the values above look like plain numbers, the stage\n   labels could not be read — check the private app has deal schema/pipeline read access.`);
+  }
   console.log(`\nAudited by stage:`); for (const [s, n] of desc(stageTally)) console.log(`  ${String(n).padStart(4)}  ${s}`);
   console.log(`\nIssues by type:`);   for (const [p, n] of desc(perProblem)) console.log(`  ${String(n).padStart(4)}  ${p}`);
   console.log(`\nFlagged per consultant:`); for (const [o, n] of desc(perOwner)) console.log(`  ${String(n).padStart(4)}  ${o}`);
