@@ -162,9 +162,19 @@ const SCENARIOS = [
     }
     let issues = [];
     try {
-      issues = issues.concat(checkCloseDate(d), checkStage(d), checkTask(d), checkNotes(d), checkMarketing(d));
-      issues = issues.concat(await checkComms(d));
+      // exactly how the runner calls them, so an un-awaited async check is caught here
+      const results = await Promise.all([
+        checkCloseDate(d), checkStage(d), checkTask(d), checkNotes(d), checkComms(d), checkMarketing(d),
+      ]);
+      issues = results.flat().filter(Boolean);
     } catch (e) { console.log(`FAIL  ${label}\n        crashed: ${e.message}`); fail++; continue; }
+
+    // every finding must be {problem, action} strings — a Promise or stray value fails here
+    const malformed = issues.filter((i) => typeof i?.problem !== "string" || typeof i?.action !== "string");
+    if (malformed.length) {
+      console.log(`FAIL  ${label}\n        a check returned ${malformed.length} malformed finding(s) — likely an un-awaited async check`);
+      fail++; continue;
+    }
     issues.sort((a, b) => (PRIORITY[a.area] || 99) - (PRIORITY[b.area] || 99));
     const text = issues.map((i) => i.problem).join("; ");
 
