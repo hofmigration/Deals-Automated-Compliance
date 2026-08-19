@@ -14,18 +14,39 @@ const mentionHtml = (ownerId, fullName) => {
 const joinActions = (a) =>
   a.length === 1 ? a[0] : a.length === 2 ? `${a[0]} and also ${a[1]}` : `${a.slice(0, -1).join(", ")} and also ${a[a.length - 1]}`;
 
+// Builds the sentence for one finding. A check can supply `line` to write the whole
+// sentence itself (e.g. "As the call was no answer, kindly send a follow up email to
+// the client"); otherwise the action is prefixed with Kindly / Also.
+function sentence(issue, index) {
+  // The context sentence is only used on the FIRST line. Repeating "as the call was
+  // no answer" on every line reads badly, so later lines use the plain action.
+  if (index === 0 && issue.line) return issue.line;
+  return index === 0 ? `Kindly ${issue.action}` : `Also ${issue.action}`;
+}
+
+// de-duplicate on the sentence, not the action, so custom lines survive
+function uniqueIssues(issues) {
+  const seen = new Set(), out = [];
+  for (const i of issues) {
+    const key = i.line || i.action;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(i);
+  }
+  return out;
+}
+
 function buildNoteHtml(ownerId, fullName, issues) {
   const P = (i) => `<p style="margin:0;">${i}</p>`;
-  const actions = [...new Set(issues.map((i) => i.action))];
+  const list = uniqueIssues(issues);
   const lines = [P(`Hi ${mentionHtml(ownerId, fullName)}`)];
-  actions.forEach((a, i) => lines.push(P(esc(i === 0 ? `Kindly ${a}` : `Also ${a}`))));
+  list.forEach((iss, i) => lines.push(P(esc(sentence(iss, i)))));
   lines.push(P("Thank you"));
   return `<div style="" dir="auto" data-top-level="true">${lines.join("")}</div>`;
 }
 
 const composeNote = (fullName, issues) => {
-  const actions = [...new Set(issues.map((i) => i.action))];
-  return `Hi @${fullName} | ` + actions.map((a, i) => (i === 0 ? `Kindly ${a}` : `Also ${a}`)).join(" | ") + " | Thank you";
+  const list = uniqueIssues(issues);
+  return `Hi @${fullName} | ` + list.map((iss, i) => sentence(iss, i)).join(" | ") + " | Thank you";
 };
 
 async function postNote(dealId, ownerId, ownerName, issues) {
