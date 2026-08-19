@@ -45,18 +45,27 @@ module.exports = async function checkComms(d) {
   if (SETTINGS.CHECK_CALL_DESCRIPTION && reached && !hasDescription(latest.note))
     issues.push({ area: "call", problem: `"${latest.outcome}" call but no description logged`, action: "log the call description" });
 
-  // an email is required either way, and must follow the call
+  // an email is required either way, and must follow the call.
+  // The note names the call outcome so the consultant knows WHY they are being asked,
+  // e.g. "As the call was no answer, kindly send a follow up email to the client".
   if (d.available.emails && !d.emails.some((e) => e.when >= latest.when)) {
+    const outcome = String(latest.outcome || "").toLowerCase();
     issues.push(reached
-      ? { area: "email", problem: "Connected call but no email logged after it", action: "share the process details with the client by email" }
-      : { area: "email", problem: `Call was "${latest.outcome}" but no email logged after it`, action: "send the client the no answer email" });
+      ? { area: "email", problem: `${latest.outcome} call but no email logged after it`,
+          action: "share the process details with the client by email",
+          line: `As the call was ${outcome}, kindly share the process details with the client by email` }
+      : { area: "email", problem: `Call was "${latest.outcome}" but no email logged after it`,
+          action: "send a follow up email to the client",
+          line: `As the call was ${outcome}, kindly send a follow up email to the client` });
   }
 
   // WhatsApp — only when the client did NOT respond
   if (!reached && d.available.whatsapps) {
     const followUp = d.whatsapps.find((w) => w.when >= latest.when);
     if (!followUp) {
-      issues.push({ area: "whatsapp", problem: `Call was "${latest.outcome}" but no WhatsApp logged after it`, action: "reach out to the client on WhatsApp" });
+      issues.push({ area: "whatsapp", problem: `Call was "${latest.outcome}" but no WhatsApp logged after it`,
+        action: "reach out to the client on WhatsApp",
+        line: `As the call was ${String(latest.outcome || "").toLowerCase()}, kindly reach out to the client on WhatsApp` });
     } else {
       const gapH = (followUp.when - latest.when) / 3600000;
       if (gapH > SETTINGS.WHATSAPP_DELAY_HOURS)
