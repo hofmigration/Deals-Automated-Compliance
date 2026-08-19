@@ -1,0 +1,289 @@
+name: Deal Compliance
+
+on:
+  schedule:
+    # 05:20 UTC = 10:20 AM PKT — 20 minutes after the contact audit.
+    - cron: "20 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (safe test, writes nothing)?"
+        required: true
+        type: choice
+        default: "true"
+        options:
+          - "true"
+          - "false"
+      window:
+        description: "Time window (pick Any time when scanning by close date, stage or reason)"
+        required: true
+        type: choice
+        default: "Yesterday"
+        options:
+          - "Yesterday"
+          - "Today so far"
+          - "Last 3 days"
+          - "Last 7 days"
+          - "Last 14 days"
+          - "Last 30 days"
+          - "Any time (ignore window)"
+      deal_stage:
+        description: "Deal stage"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "Qualified Client"
+          - "CCL Sent"
+          - "Last Month Rollover"
+          - "Expected Sales"
+          - "Payment Made/Deal Won"
+          - "Postponed"
+          - "Deal Lost"
+      close_date:
+        description: "Close date"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "Overdue (in the past)"
+          - "Today"
+          - "This week"
+          - "This month"
+          - "Next month"
+          - "Not set"
+      reason:
+        description: "Won / Postponed / Lost reason"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "Not set"
+          - "Opportunity"
+          - "Sale"
+          - "Not Responding"
+          - "Cannot Afford At This Time"
+          - "Started With A Competitor"
+          - "No Longer Interested"
+          - "Family Issues"
+          - "Will Do IELTS First"
+          - "I Couldn't Convince"
+          - "Job Loss"
+          - "Delayed Decision But Will Start"
+          - "Self Processing"
+          - "Cross Sell"
+          - "Low Salary"
+      limit:
+        description: "How many deals to audit"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "25"
+          - "50"
+          - "100"
+          - "250"
+          - "500"
+      consultant_1:
+        description: "Consultant (pick 'all' for everyone)"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "Ambreen Sayed"
+          - "Insha Khan"
+          - "Akanksha Yadav"
+          - "Sneha Nair"
+          - "Wahab Saeed Dogar"
+          - "Muhammad Jalal Shah"
+          - "Komal Zahid"
+          - "Kawleen Kaur"
+          - "Anne Mariele De Guzman"
+          - "Mia Kordab"
+          - "Ronalyn Aguilar"
+          - "Arya Murali"
+          - "Rahul Pillai"
+          - "Aleen Naeem"
+          - "Khurram Iqbal"
+          - "Ahlam Khandoq"
+          - "Patrecia Haddad"
+          - "Abhi V"
+          - "Ayesha Anum"
+          - "Maaoui Chima Ines"
+          - "Jully Gill"
+          - "Asfandyar Malik"
+          - "Ayaat Gamal"
+          - "Rabbiya Mohsin"
+          - "Muhammad Diean"
+          - "Muhammad Shahzad Fiaz"
+          - "Ayesha Zahid"
+          - "Fatima Zahid"
+          - "Ahmad Ali"
+          - "Ali Raza Qureshi"
+          - "Mishal Naseem"
+          - "Hamza Mughal"
+          - "Fahad Butt"
+          - "Atika Zainab"
+          - "Tuba Ahmad"
+          - "Laraib Khalid"
+          - "Muhammad Hasham Azhar"
+          - "Ahmed Malik"
+          - "Laaiba Anum"
+          - "Muhammad Hanzla"
+          - "Muhammad Awaad"
+          - "Mashal Fatima"
+          - "Haleema Umar"
+          - "Rida Faisal"
+          - "Janice Noronha"
+          - "Insha Ali"
+          - "Uzma Qamar"
+      consultant_2:
+        description: "Also audit (optional)"
+        required: false
+        type: choice
+        default: "- none -"
+        options:
+          - "- none -"
+          - "Ambreen Sayed"
+          - "Insha Khan"
+          - "Akanksha Yadav"
+          - "Sneha Nair"
+          - "Wahab Saeed Dogar"
+          - "Muhammad Jalal Shah"
+          - "Komal Zahid"
+          - "Kawleen Kaur"
+          - "Anne Mariele De Guzman"
+          - "Mia Kordab"
+          - "Ronalyn Aguilar"
+          - "Arya Murali"
+          - "Rahul Pillai"
+          - "Aleen Naeem"
+          - "Khurram Iqbal"
+          - "Ahlam Khandoq"
+          - "Patrecia Haddad"
+          - "Abhi V"
+          - "Ayesha Anum"
+          - "Maaoui Chima Ines"
+          - "Jully Gill"
+          - "Asfandyar Malik"
+          - "Ayaat Gamal"
+          - "Rabbiya Mohsin"
+          - "Muhammad Diean"
+          - "Muhammad Shahzad Fiaz"
+          - "Ayesha Zahid"
+          - "Fatima Zahid"
+          - "Ahmad Ali"
+          - "Ali Raza Qureshi"
+          - "Mishal Naseem"
+          - "Hamza Mughal"
+          - "Fahad Butt"
+          - "Atika Zainab"
+          - "Tuba Ahmad"
+          - "Laraib Khalid"
+          - "Muhammad Hasham Azhar"
+          - "Ahmed Malik"
+          - "Laaiba Anum"
+          - "Muhammad Hanzla"
+          - "Muhammad Awaad"
+          - "Mashal Fatima"
+          - "Haleema Umar"
+          - "Rida Faisal"
+          - "Janice Noronha"
+          - "Insha Ali"
+          - "Uzma Qamar"
+      consultant_3:
+        description: "Also audit (optional)"
+        required: false
+        type: choice
+        default: "- none -"
+        options:
+          - "- none -"
+          - "Ambreen Sayed"
+          - "Insha Khan"
+          - "Akanksha Yadav"
+          - "Sneha Nair"
+          - "Wahab Saeed Dogar"
+          - "Muhammad Jalal Shah"
+          - "Komal Zahid"
+          - "Kawleen Kaur"
+          - "Anne Mariele De Guzman"
+          - "Mia Kordab"
+          - "Ronalyn Aguilar"
+          - "Arya Murali"
+          - "Rahul Pillai"
+          - "Aleen Naeem"
+          - "Khurram Iqbal"
+          - "Ahlam Khandoq"
+          - "Patrecia Haddad"
+          - "Abhi V"
+          - "Ayesha Anum"
+          - "Maaoui Chima Ines"
+          - "Jully Gill"
+          - "Asfandyar Malik"
+          - "Ayaat Gamal"
+          - "Rabbiya Mohsin"
+          - "Muhammad Diean"
+          - "Muhammad Shahzad Fiaz"
+          - "Ayesha Zahid"
+          - "Fatima Zahid"
+          - "Ahmad Ali"
+          - "Ali Raza Qureshi"
+          - "Mishal Naseem"
+          - "Hamza Mughal"
+          - "Fahad Butt"
+          - "Atika Zainab"
+          - "Tuba Ahmad"
+          - "Laraib Khalid"
+          - "Muhammad Hasham Azhar"
+          - "Ahmed Malik"
+          - "Laaiba Anum"
+          - "Muhammad Hanzla"
+          - "Muhammad Awaad"
+          - "Mashal Fatima"
+          - "Haleema Umar"
+          - "Rida Faisal"
+          - "Janice Noronha"
+          - "Insha Ali"
+          - "Uzma Qamar"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Check the deal rules still work
+        run: node selftest.js
+      - name: Translate the window choice
+        id: win
+        run: |
+          case "${{ inputs.window }}" in
+            "Yesterday")               echo "w=yesterday" >> $GITHUB_OUTPUT ;;
+            "Today so far")            echo "w=today"     >> $GITHUB_OUTPUT ;;
+            "Last 3 days")             echo "w=3"         >> $GITHUB_OUTPUT ;;
+            "Last 7 days")             echo "w=7"         >> $GITHUB_OUTPUT ;;
+            "Last 14 days")            echo "w=14"        >> $GITHUB_OUTPUT ;;
+            "Last 30 days")            echo "w=30"        >> $GITHUB_OUTPUT ;;
+            "Any time (ignore window)") echo "w=any"      >> $GITHUB_OUTPUT ;;
+            *)                         echo "w=yesterday" >> $GITHUB_OUTPUT ;;
+          esac
+      - run: node deal-compliance.js
+        env:
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          RESEND_KEY: ${{ secrets.RESEND_KEY }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
+          AUDIT_WINDOW_INPUT: ${{ steps.win.outputs.w }}
+          DEAL_STAGE_INPUT: ${{ inputs.deal_stage }}
+          CLOSEDATE_INPUT: ${{ inputs.close_date }}
+          REASON_INPUT: ${{ inputs.reason }}
+          LIMIT_INPUT: ${{ inputs.limit }}
+          CONSULTANTS_INPUT: "${{ inputs.consultant_1 }}|${{ inputs.consultant_2 }}|${{ inputs.consultant_3 }}"

@@ -1,0 +1,9 @@
+{
+  "name": "hubspot-deal-compliance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily deal-compliance pipeline for HOF Migration (HubSpot).",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node deal-compliance.js", "test": "node selftest.js" }
+}
