@@ -27,12 +27,44 @@ function auditWindow() {
   return { startMs: startToday - 86400000, endMs: startToday };
 }
 
+// The sales stage ids, verified in portal 23735726. Each label exists TWICE with a
+// different id (older pipelines vs newer), so both sets are listed. This is a
+// FALLBACK: if the stage-label lookup fails we still resolve stages instead of
+// skipping every deal as "not a sales stage" (which is exactly what happened once).
+const STANDARD_STAGES = {
+  "75652492": "Qualified Client",           "947690584": "Qualified Client",
+  "60994695": "CCL Sent",                   "947690585": "CCL Sent",
+  "181063346": "Last Month Rollover",       "947690586": "Last Month Rollover",
+  "60994696": "Expected Sales",             "947690587": "Expected Sale",
+  "60994706": "Payment Made/Deal Won",      "947690588": "Payment Made/Deal Won",
+  "76664875": "Postpone (No Specific Date)","947690589": "Postponed",
+  "75652493": "Deal Lost",                  "947690590": "Deal Lost",
+};
+
+// Stage labels can come from the property options OR the pipelines endpoint. We try
+// both and merge, so one missing scope cannot blind the whole audit.
+async function stageLabelsFromPipelines() {
+  try {
+    const d = await hub("GET", "/crm/v3/pipelines/deals");
+    const m = {};
+    for (const p of d.results || []) for (const st of p.stages || []) m[st.id] = st.label;
+    return m;
+  } catch (e) { return {}; }
+}
+
 async function lookups() {
-  const [stages, dispo] = await Promise.all([
+  const [fromProps, fromPipelines, dispo] = await Promise.all([
     optionLabels("deals", "dealstage"),
+    stageLabelsFromPipelines(),
     optionLabels("calls", "hs_call_disposition"),
   ]);
-  return { stageLabel: stages, dispoLabel: { ...STANDARD_DISPOSITIONS, ...dispo } };
+  const stageLabel = { ...STANDARD_STAGES, ...fromProps, ...fromPipelines };
+  console.log(`Stage labels: ${Object.keys(fromProps).length} from properties, ` +
+    `${Object.keys(fromPipelines).length} from pipelines, ` +
+    `${Object.keys(STANDARD_STAGES).length} built in -> ${Object.keys(stageLabel).length} usable`);
+  if (!Object.keys(fromProps).length && !Object.keys(fromPipelines).length)
+    console.log(`  (both live sources failed — running on the built-in sales stage list)`);
+  return { stageLabel, dispoLabel: { ...STANDARD_DISPOSITIONS, ...dispo } };
 }
 
 // Turns the close-date choice into a HubSpot filter.
