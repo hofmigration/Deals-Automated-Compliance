@@ -14,12 +14,15 @@ const checkNotes = require("./5-check-notes");
 const checkComms = require("./6-check-comms");
 const checkMarketing = require("./7-check-marketing");
 const checkPipeline = require("./8-check-pipeline");
+const checkClientIntent = require("./10-check-client-intent");
 const { composeNote, postNote, createComplianceTask } = require("./9-note");
 
 const OWNER_NAME = Object.fromEntries(SELECTED_OWNERS.map((o) => [o.id, o.name]));
 
 // what loses the sale first
-const PRIORITY = { pipeline: 1, closedate: 2, reason: 3, call: 4, email: 5, whatsapp: 6, task: 7, payment: 8, details: 9, marketing: 10 };
+// what matters most first. "intent" leads: a deal sitting in an active stage after the
+// client has already said no is the worst kind of wrong, it distorts the forecast.
+const PRIORITY = { intent: 1, pipeline: 2, closedate: 3, reason: 4, call: 5, email: 6, whatsapp: 7, task: 8, payment: 9, details: 10, marketing: 11 };
 
 async function ownerEmails() {
   const map = {}; let after;
@@ -100,7 +103,7 @@ async function main() {
       // this still works. (A previously un-awaited async check crashed the run.)
       const results = await Promise.all([
         checkCloseDate(d), checkStage(d), checkTask(d), checkNotes(d),
-        checkComms(d), checkMarketing(d), checkPipeline(d),
+        checkComms(d), checkMarketing(d), checkPipeline(d), checkClientIntent(d),
       ]);
       issues = results.flat().filter(Boolean);
     } catch (e) { console.log(`check error ${d.id}: ${e.message}`); }
