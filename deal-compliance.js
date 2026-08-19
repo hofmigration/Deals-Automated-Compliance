@@ -96,9 +96,21 @@ async function main() {
 
     let issues = [];
     try {
-      issues = issues.concat(checkCloseDate(d), checkStage(d), checkTask(d), checkNotes(d), checkComms(d), checkMarketing(d));
-      issues = issues.concat(await checkPipeline(d));
+      // Promise.all resolves plain arrays too, so a check can be sync or async and
+      // this still works. (A previously un-awaited async check crashed the run.)
+      const results = await Promise.all([
+        checkCloseDate(d), checkStage(d), checkTask(d), checkNotes(d),
+        checkComms(d), checkMarketing(d), checkPipeline(d),
+      ]);
+      issues = results.flat().filter(Boolean);
     } catch (e) { console.log(`check error ${d.id}: ${e.message}`); }
+
+    // guard: never let a malformed finding reach the summary or a note
+    const bad = issues.filter((i) => typeof i?.problem !== "string" || typeof i?.action !== "string");
+    if (bad.length) {
+      console.log(`!! ${bad.length} malformed finding(s) on deal ${d.id} were dropped (a check returned the wrong shape).`);
+      issues = issues.filter((i) => typeof i?.problem === "string" && typeof i?.action === "string");
+    }
     if (!issues.length) continue;
 
     issues.sort((a, b) => (PRIORITY[a.area] || 99) - (PRIORITY[b.area] || 99));
