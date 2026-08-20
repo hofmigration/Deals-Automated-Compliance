@@ -15,6 +15,7 @@ const checkComms = require("./6-check-comms");
 const checkMarketing = require("./7-check-marketing");
 const checkPipeline = require("./8-check-pipeline");
 const checkClientIntent = require("./10-check-client-intent");
+const { copyIfNeeded } = require("./11-copy-client-details");
 const { composeNote, postNote, createComplianceTask } = require("./9-note");
 
 const OWNER_NAME = Object.fromEntries(SELECTED_OWNERS.map((o) => [o.id, o.name]));
@@ -71,7 +72,7 @@ async function main() {
   if (deals.length) await preflight(deals[0].id);
 
   const flagged = [];
-  let audited = 0, skippedStage = 0, waSeen = 0, waExpected = 0, commSeen = 0;
+  let audited = 0, skippedStage = 0, waSeen = 0, waExpected = 0, commSeen = 0, detailsCopied = 0;
   const channelTally = {}, stageTally = {}, unresolved = {};
 
   for (const raw of deals) {
@@ -96,6 +97,18 @@ async function main() {
     for (const [k, n] of Object.entries(d.channelSeen || {})) channelTally[k] = (channelTally[k] || 0) + n;
     const lc = d.calls[0];
     if (lc && lc.outcome && !SETTINGS.REACHED_OUTCOMES.map((x) => x.toLowerCase()).includes(String(lc.outcome).toLowerCase())) waExpected++;
+
+    // Fix what can be fixed: client details typed into the call description get copied
+    // into a proper note on the deal. In a dry run this only reports what it would do;
+    // if a live copy fails, the consultant is asked for it instead (see script 5).
+    try {
+      const r = await copyIfNeeded(d, OWNER_NAME[d.ownerId] || "the consultant", SETTINGS.DRY_RUN);
+      if (r?.copied) { detailsCopied++; console.log(`  copied client details into a note on deal ${d.id}`); }
+      if (r?.wouldCopy) { detailsCopied++; console.log(`  would copy client details into a note on deal ${d.id} (${r.chars} chars)`); }
+    } catch (e) {
+      d.detailsCopyFailed = true;
+      console.log(`copy failed on deal ${d.id}: ${e.message} — the consultant will be asked instead`);
+    }
 
     let issues = [];
     try {
@@ -162,6 +175,7 @@ async function main() {
 
   console.log(`\n===== SUMMARY =====`);
   console.log(`Deals in window ${deals.length} | not a sales stage ${skippedStage} | audited ${audited} | FLAGGED ${flagged.length}`);
+  if (detailsCopied) console.log(`Client details ${SETTINGS.DRY_RUN ? "that WOULD be copied" : "copied"} from call logs into deal notes: ${detailsCopied}`);
   if (skippedStage) {
     const top = Object.entries(unresolved).sort((a, b) => b[1] - a[1]).slice(0, 12);
     console.log(`\nSkipped stage values (top ${top.length}):`);
