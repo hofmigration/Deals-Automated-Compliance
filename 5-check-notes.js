@@ -13,9 +13,14 @@
 //    Detected by payment wording plus figures.
 const { SETTINGS } = require("./config");
 
-// our own compliance notes must never satisfy these checks
-const isOurs = (n) => String(n.ownerId || "") === String(SETTINGS.NOTE_OWNER_ID) ||
-  /compliance check|kindly (mark|log|schedule|update|select)/i.test(n.body || "");
+// Our own COMPLIANCE notes must never satisfy these checks. Identified by their
+// wording, not by the owner — a client-details note copied in by the system is still
+// a valid client-details note, and Ali may legitimately write one himself.
+const isComplianceNote = (n) => {
+  const b = String(n.body || "");
+  return (/^\s*hi\s*@/i.test(b) && /\bkindly\b/i.test(b)) ||
+    /\[compliance\]/i.test(b) || /^compliance check/i.test(b);
+};
 
 const DETAIL_SIGNALS = [
   /\b(bachelor|bachelors|master|masters|mba|bsc|msc|phd|diploma|graduate)\b/i,
@@ -45,14 +50,36 @@ function looksLikePaymentProof(body) {
   return (hits >= 2 && hasFigures(t)) || (hits >= 1 && hasFigures(t) && /vat|deposit|instal/i.test(t));
 }
 
+// Where are the client details? Consultants often type them into the CALL
+// DESCRIPTION rather than a separate note, e.g.
+//   "age: 54yrs / edu: phd / exp: 30yrs / married / kids: 16yrs / Indian /
+//    associate professor / he wanted to know about the USA EB-2 NIW..."
+// That still counts as recorded, so it is accepted here and can be copied into a
+// proper deal note automatically by script 11.
+function findClientDetails(d) {
+  const noteHit = (d.notes || []).filter((n) => !isComplianceNote(n)).find((n) => looksLikeClientDetails(n.body));
+  if (noteHit) return { where: "note", text: noteHit.body, call: null };
+  const callHit = (d.calls || []).find((c) => looksLikeClientDetails(c.note));
+  if (callHit) return { where: "call", text: callHit.note, call: callHit };
+  return null;
+}
+
 module.exports = function checkNotes(d) {
   if (!d.available.notes) return [];
   const issues = [];
-  const theirs = d.notes.filter((n) => !isOurs(n));
+  const theirs = d.notes.filter((n) => !isComplianceNote(n));
 
   if (SETTINGS.CHECK_DETAILS_NOTE && d.stage && !SETTINGS.DETAILS_NOTE_SKIP_STAGES.includes(d.stage)) {
-    if (!theirs.some((n) => looksLikeClientDetails(n.body)))
-      issues.push({ area: "details", problem: "No client details note on the deal", action: "add a note with the full client details" });
+    const found = findClientDetails(d);
+    if (!found && d.available.calls) {
+      // nowhere at all: neither a note nor a call description -> ask the consultant
+      issues.push({ area: "details", problem: "No client details recorded on the deal", action: "add a note with the full client details" });
+    } else if (found && found.where === "call") {
+      // in the call description: the system copies it into a note, so nothing to ask.
+      // But if copying is switched off, or the copy failed, the consultant is asked.
+      if (!SETTINGS.COPY_CLIENT_DETAILS_TO_NOTE || d.detailsCopyFailed)
+        issues.push({ area: "details", problem: "Client details are in the call description, not in a note", action: "add the client details as a note on the deal" });
+    }
   }
 
   if (SETTINGS.CHECK_PAYMENT_PROOF && d.stage && SETTINGS.PAYMENT_PROOF_STAGES.includes(d.stage)) {
@@ -64,3 +91,5 @@ module.exports = function checkNotes(d) {
 };
 module.exports.looksLikeClientDetails = looksLikeClientDetails;
 module.exports.looksLikePaymentProof = looksLikePaymentProof;
+module.exports.findClientDetails = findClientDetails;
+module.exports.isComplianceNote = isComplianceNote;
