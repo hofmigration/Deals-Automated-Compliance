@@ -81,11 +81,11 @@ const SCENARIOS = [
            tasks: [{ hs_task_subject: "Old", hs_task_status: "COMPLETED", hs_timestamp: new Date(now - 40 * DAY).toISOString() }] }), "!follow-up task"],
 
   // --- client details note ---
-  ["missing client details note", good({ notes: [] }), "No client details note"],
-  ["short chit-chat note is not client details", good({ notes: [{ when: now, body: "called client", ownerId: "1" }] }), "No client details note"],
+  ["missing client details note", good({ notes: [] }), "No client details recorded"],
+  ["short chit-chat note is not client details", good({ notes: [{ when: now, body: "called client", ownerId: "1" }] }), "No client details recorded"],
   ["real client details note is accepted", good({ notes: [{ when: now, body: DETAILS_NOTE, ownerId: "1" }] }), "!client details"],
   ["our own compliance note is not client details",
-    good({ notes: [{ when: now, body: "Hi @Ahmed Kindly mark the lead stage", ownerId: SETTINGS.NOTE_OWNER_ID }] }), "No client details note"],
+    good({ notes: [{ when: now, body: "Hi @Ahmed Kindly mark the lead stage", ownerId: SETTINGS.NOTE_OWNER_ID }] }), "No client details recorded"],
 
   // --- proof of payment (Won only) ---
   ["won deal without proof of payment", good({ stage: "WON", stageLabel: "Payment Made/Deal Won", notes: [{ when: now, body: DETAILS_NOTE, ownerId: "1" }] }), "no proof of payment"],
@@ -94,18 +94,18 @@ const SCENARIOS = [
   ["proof of payment not required on Qualified Client", good(), "!proof of payment"],
 
   // --- comms: connected ---
-  ["connected call with no email after it", good({ emails: [] }), "no email logged after it"],
+  ["connected call with no email after it", good({ emails: [] }), "no email with the process details"],
   ["connected call needs no WhatsApp", good({ whatsapps: [] }), "!WhatsApp"],
   ["connected call with no description", good({ calls: [{ outcome: "Connected", when: now - 3600000, note: "" }] }), "no description logged"],
   ["connected call with NA as description", good({ calls: [{ outcome: "Connected", when: now - 3600000, note: "NA" }] }), "no description logged"],
   ["email logged before the call does not count",
-    good({ calls: [{ outcome: "Connected", when: now, note: "spoke" }], emails: [{ when: now - 5 * DAY, subject: "old", body: "old" }] }), "no email logged after it"],
+    good({ calls: [{ outcome: "Connected", when: now, note: "spoke" }], emails: [{ when: now - 5 * DAY, subject: "old", body: "old" }] }), "no email with the process details"],
 
   // --- comms: not reached ---
   ["no answer needs email AND whatsapp",
-    good({ calls: [{ outcome: "No answer", when: now - 3600000, note: "" }], emails: [], whatsapps: [] }), "no email logged after it"],
+    good({ calls: [{ outcome: "No answer", when: now - 3600000, note: "" }], emails: [], whatsapps: [] }), "no follow up email logged"],
   ["no answer with email but no whatsapp",
-    good({ calls: [{ outcome: "No answer", when: now - 7200000, note: "" }], emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }], whatsapps: [] }), "no WhatsApp logged after it"],
+    good({ calls: [{ outcome: "No answer", when: now - 7200000, note: "" }], emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }], whatsapps: [] }), "no WhatsApp logged"],
   ["no answer with email and whatsapp is accepted",
     good({ calls: [{ outcome: "No answer", when: now - 7200000, note: "" }],
            emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }],
@@ -115,7 +115,7 @@ const SCENARIOS = [
            emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }],
            whatsapps: [{ when: now - 1800000, body: "Hello" }] }), "!no description"],
   ["busy call is treated as not reached",
-    good({ calls: [{ outcome: "Busy", when: now - 7200000, note: "" }], whatsapps: [] }), "no WhatsApp logged after it"],
+    good({ calls: [{ outcome: "Busy", when: now - 7200000, note: "" }], whatsapps: [] }), "no WhatsApp logged"],
   ["no call logged on the deal", good({ calls: [] }), "No call logged on the deal"],
 
   // --- WhatsApp scanned the same as on contacts ---
@@ -130,20 +130,50 @@ const SCENARIOS = [
   ["old whatsapp does not satisfy a new no-answer call",
     good({ calls: [{ outcome: "No answer", when: now - 3600000, note: "" }],
            emails: [{ when: now, subject: "Sorry we missed you", body: "Hi Ahmed" }],
-           whatsapps: [{ when: now - 40 * DAY, body: "Hello" }] }), "no WhatsApp logged after it"],
+           whatsapps: [{ when: now - 40 * DAY, body: "Hello" }] }), "no WhatsApp logged"],
   ["left voicemail also needs email and whatsapp",
-    good({ calls: [{ outcome: "Left voicemail", when: now - 3600000, note: "" }], emails: [], whatsapps: [] }), "no email logged after it"],
+    good({ calls: [{ outcome: "Left voicemail", when: now - 3600000, note: "" }], emails: [], whatsapps: [] }), "no follow up email logged"],
   ["wrong number also needs a whatsapp",
     good({ calls: [{ outcome: "Wrong number", when: now - 7200000, note: "" }],
-           emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }], whatsapps: [] }), "no WhatsApp logged after it"],
+           emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi Ahmed" }], whatsapps: [] }), "no WhatsApp logged"],
   ["broken whatsapp lookup stays silent on deals",
     good({ available: { ...OK, whatsapps: false }, calls: [{ outcome: "No answer", when: now - 7200000, note: "" }],
            emails: [{ when: now - 3600000, subject: "Sorry we missed you", body: "Hi" }], whatsapps: [] }), "!WhatsApp"],
 
   // --- note wording ---
   ["no answer email ask reads as a follow up, not a template name",
-    good({ calls: [{ outcome: "No answer", when: now - 3600000, note: "" }], emails: [] }), "no email logged after it"],
+    good({ calls: [{ outcome: "No answer", when: now - 3600000, note: "" }], emails: [] }), "no follow up email logged"],
   ["wording check", null, "WORDING"],
+
+  // --- the Ambreen Sayed case: details already emailed, do not chase again ---
+  ["a later connected call does not require the email to be re-sent",
+    good({ calls: [
+      { outcome: "Connected", when: now - 1 * DAY, note: "follow up chat" },
+      { outcome: "Connected", when: now - 3 * DAY, note: "explained the process and fee structure" },
+    ], emails: [{ when: now - 3 * DAY + 1800000, subject: "EB-2 NIW roadmap", body: "Dear Saravana, thank you for your interest" }] }),
+    "!email"],
+  ["email sent the same day but slightly before the call still counts",
+    good({ calls: [{ outcome: "Connected", when: now - 3600000, note: "spoke about Canada" }],
+           emails: [{ when: now - 5 * 3600000, subject: "Canada PR", body: "Hi Ahmed" }] }), "!email"],
+  ["still flagged when no email was ever sent after the first connected call",
+    good({ calls: [{ outcome: "Connected", when: now - DAY, note: "spoke" }], emails: [] }), "no email with the process details"],
+
+  // --- client details recorded in the CALL DESCRIPTION ---
+  ["client details in the call description are accepted",
+    good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000,
+      note: "age: 54yrs edu: phd exp: 30yrs married kids: 16yrs Indian associate professor, he wanted to know about the USA EB-2 NIW" }] }), "!client details"],
+  ["call description with no client facts is not accepted as details",
+    good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client, will call again" }] }), "No client details recorded"],
+  ["client details copy helper finds them in the call log", null, "COPY_FIND"],
+  ["details nowhere at all is flagged",
+    good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client" }] }), "No client details recorded"],
+  ["details in the call log with copying ON is not flagged",
+    good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000,
+      note: "age: 54yrs edu: phd exp: 30yrs married kids: 16yrs Indian associate professor" }] }), "!client details"],
+  ["details in the call log is flagged when the copy failed",
+    good({ detailsCopyFailed: true, notes: [], calls: [{ outcome: "Connected", when: now - 3600000,
+      note: "age: 54yrs edu: phd exp: 30yrs married kids: 16yrs Indian associate professor" }] }), "not in a note"],
+  ["client details copy is skipped when already copied", null, "COPY_ONCE"],
 
   // --- marketing properties ---
   ["contact outcome not Deal Created", good({ contact: { ...good().contact, outcome: "Opportunity" } }), "not Deal Created"],
@@ -206,6 +236,22 @@ const SCENARIOS = [
       const won = await checkIntent(good({ ...say, stage: "WON", stageLabel: "Payment Made/Deal Won" }));
       const post = await checkIntent(good({ ...say, stage: "POSTPONED", stageLabel: "Postponed", reason: "Family Issues" }));
       const ok = lost.length === 0 && won.length === 0 && post.length === 0;
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); ok ? pass++ : fail++;
+      continue;
+    }
+    if (must === "COPY_FIND") {
+      const { findClientDetails } = require("./5-check-notes");
+      const inCall = findClientDetails(good({ notes: [], calls: [{ outcome: "Connected", when: now,
+        note: "age: 54yrs edu: phd exp: 30yrs married kids: 16yrs Indian associate professor" }] }));
+      const inNote = findClientDetails(good());
+      const ok = inCall && inCall.where === "call" && /phd/i.test(inCall.text) && inNote && inNote.where === "note";
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); ok ? pass++ : fail++;
+      continue;
+    }
+    if (must === "COPY_ONCE") {
+      const { alreadyCopied, MARKER } = require("./11-copy-client-details");
+      const ok = alreadyCopied({ notes: [{ body: `${MARKER} Logged by X on 2026-08-18 age: 54yrs` }] }) === true
+        && alreadyCopied({ notes: [{ body: "some other note" }] }) === false;
       console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); ok ? pass++ : fail++;
       continue;
     }
