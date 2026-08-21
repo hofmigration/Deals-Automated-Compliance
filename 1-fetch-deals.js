@@ -20,15 +20,11 @@ const STANDARD_DISPOSITIONS = {
   "17b47fee-58de-441e-a44c-c6300d46f273": "Wrong number",
 };
 
+// A rolling window of the last N hours, ending now. 0 hours = no window at all.
 function auditWindow() {
-  const startToday = startOfTodayPkt(SETTINGS.TZ_OFFSET_HOURS);
-  const w = String(SETTINGS.AUDIT_WINDOW || "yesterday").toLowerCase();
-  if (w === "any" || w === "any time") return null;          // no window at all
-  if (w === "today") return { startMs: startToday, endMs: Date.now() };
-  if (w === "yesterday") return { startMs: startToday - 86400000, endMs: startToday };
-  const days = parseInt(w, 10);
-  if (Number.isFinite(days) && days > 0) return { startMs: startToday - days * 86400000, endMs: Date.now() };
-  return { startMs: startToday - 86400000, endMs: startToday };
+  const h = SETTINGS.AUDIT_HOURS;
+  if (!h) return null;
+  return { startMs: Date.now() - h * 3600000, endMs: Date.now() };
 }
 
 // The sales stage ids, verified in portal 23735726. Each label exists TWICE with a
