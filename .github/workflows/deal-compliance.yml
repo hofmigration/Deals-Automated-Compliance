@@ -14,19 +14,11 @@ on:
         options:
           - "true"
           - "false"
-      window:
-        description: "Time window (pick Any time when scanning by close date, stage or reason)"
+      hours_back:
+        description: "How many HOURS back to scan. Type any number: 1, 18, 24, 72. Use 0 for any time (no window)."
         required: true
-        type: choice
-        default: "Yesterday"
-        options:
-          - "Yesterday"
-          - "Today so far"
-          - "Last 3 days"
-          - "Last 7 days"
-          - "Last 14 days"
-          - "Last 30 days"
-          - "Any time (ignore window)"
+        default: "24"
+        type: string
       deal_stage:
         description: "Deal stage"
         required: true
@@ -262,26 +254,13 @@ jobs:
           node-version: "24"
       - name: Check the deal rules still work
         run: node selftest.js
-      - name: Translate the window choice
-        id: win
-        run: |
-          case "${{ inputs.window }}" in
-            "Yesterday")               echo "w=yesterday" >> $GITHUB_OUTPUT ;;
-            "Today so far")            echo "w=today"     >> $GITHUB_OUTPUT ;;
-            "Last 3 days")             echo "w=3"         >> $GITHUB_OUTPUT ;;
-            "Last 7 days")             echo "w=7"         >> $GITHUB_OUTPUT ;;
-            "Last 14 days")            echo "w=14"        >> $GITHUB_OUTPUT ;;
-            "Last 30 days")            echo "w=30"        >> $GITHUB_OUTPUT ;;
-            "Any time (ignore window)") echo "w=any"      >> $GITHUB_OUTPUT ;;
-            *)                         echo "w=yesterday" >> $GITHUB_OUTPUT ;;
-          esac
       - run: node deal-compliance.js
         env:
           HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
           GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
           RESEND_KEY: ${{ secrets.RESEND_KEY }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}
-          AUDIT_WINDOW_INPUT: ${{ steps.win.outputs.w }}
+          HOURS_INPUT: ${{ inputs.hours_back }}
           DEAL_STAGE_INPUT: ${{ inputs.deal_stage }}
           CLOSEDATE_INPUT: ${{ inputs.close_date }}
           REASON_INPUT: ${{ inputs.reason }}
