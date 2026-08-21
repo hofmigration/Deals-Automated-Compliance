@@ -202,6 +202,11 @@ const SETTINGS = {
   CHECK_MARKETING: true,
   CHECK_PIPELINE_MATCH: true,     // AI: is the pipeline right for what was discussed
   CHECK_CLIENT_INTENT: true,      // AI: client said they cannot proceed but deal is still active
+
+  // When the client details are typed into the CALL DESCRIPTION instead of a note,
+  // copy them into a proper note on the deal automatically (live runs only).
+  // Set false to go back to just asking the consultant to do it.
+  COPY_CLIENT_DETAILS_TO_NOTE: true,
   CHECK_CALL_DESCRIPTION: true,
 
   // Safety net: if a whole run reads ZERO WhatsApp messages while many deals needed
