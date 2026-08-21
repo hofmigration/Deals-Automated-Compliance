@@ -59,7 +59,9 @@ async function main() {
   const win = auditWindow();
   const day = (t) => new Date(t).toISOString().slice(0, 16).replace("T", " ");
   console.log(`Consultants: ${ALL_OWNERS_SELECTED ? `ALL (${SELECTED_OWNERS.length})` : SELECTED_OWNERS.map((o) => o.name).join(", ")}`);
-  console.log(`Window:      ${win ? `${day(win.startMs)} .. ${day(win.endMs)} UTC` : "any time (window ignored)"}`);
+  if (SETTINGS.AUDIT_HOURS_RAW && !/^(any|0)$/i.test(SETTINGS.AUDIT_HOURS_RAW) && !Number.isFinite(parseFloat(SETTINGS.AUDIT_HOURS_RAW)))
+    console.log(`NOTE: "${SETTINGS.AUDIT_HOURS_RAW}" is not a number of hours — using 24.`);
+  console.log(`Window:      ${win ? `last ${SETTINGS.AUDIT_HOURS} hour(s)  (${day(win.startMs)} .. ${day(win.endMs)} UTC)` : "any time (no window)"}`);
   console.log(`Close date:  ${SETTINGS.ONLY_CLOSEDATE || "any"}`);
   console.log(`Reason:      ${SETTINGS.ONLY_REASON ? (SETTINGS.ONLY_REASON.blank ? "not set" : SETTINGS.ONLY_REASON.value) : "any"}`);
   console.log(`Deal stage:  ${SETTINGS.ONLY_STAGE ? STAGE_NAME[SETTINGS.ONLY_STAGE] : "all sales stages"}`);
