@@ -164,6 +164,7 @@ const SCENARIOS = [
       note: "age: 54yrs edu: phd exp: 30yrs married kids: 16yrs Indian associate professor, he wanted to know about the USA EB-2 NIW" }] }), "!client details"],
   ["call description with no client facts is not accepted as details",
     good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client, will call again" }] }), "No client details recorded"],
+  ["hours box is read correctly", null, "HOURS"],
   ["client details copy helper finds them in the call log", null, "COPY_FIND"],
   ["details nowhere at all is flagged",
     good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client" }] }), "No client details recorded"],
@@ -237,6 +238,23 @@ const SCENARIOS = [
       const post = await checkIntent(good({ ...say, stage: "POSTPONED", stageLabel: "Postponed", reason: "Family Issues" }));
       const ok = lost.length === 0 && won.length === 0 && post.length === 0;
       console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); ok ? pass++ : fail++;
+      continue;
+    }
+    if (must === "HOURS") {
+      const cases = [["1", 1], ["18", 18], ["24", 24], ["72", 72], ["0", 0], ["any", 0],
+                     ["", 24], ["abc", 24], ["24 hours", 24], [undefined, 24]];
+      let ok = true, detail = [];
+      for (const [input, expect] of cases) {
+        for (const k of Object.keys(require.cache)) delete require.cache[k];
+        if (input === undefined) delete process.env.HOURS_INPUT; else process.env.HOURS_INPUT = input;
+        const got = require("./config").SETTINGS.AUDIT_HOURS;
+        if (got !== expect) { ok = false; detail.push(`${JSON.stringify(input)} -> ${got}, expected ${expect}`); }
+      }
+      delete process.env.HOURS_INPUT;
+      for (const k of Object.keys(require.cache)) delete require.cache[k];
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+      if (!ok) console.log("        " + detail.join("; "));
+      ok ? pass++ : fail++;
       continue;
     }
     if (must === "COPY_FIND") {
