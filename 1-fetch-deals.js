@@ -1,6 +1,10 @@
 // 1-fetch-deals.js — SCRIPT 1. Finds sales deals worked in the audit window and
 // loads everything the checks need: calls, emails, tasks, notes, WhatsApp, contact.
 const { hub, assocIds, batchRead, optionLabels, newestFirst, strip, startOfTodayPkt } = require("./0-hubspot");
+
+// An engagement with no hs_timestamp used to parse as NaN, which silently failed every
+// "did this happen after the call" comparison. Fall back to the create date.
+const when = (p) => Date.parse(p.hs_timestamp || p.hs_createdate || 0) || 0;
 const { SETTINGS, PIPELINES, SELECTED_OWNERS, stageKey } = require("./config");
 
 const OWNER_IDS = SELECTED_OWNERS.map((o) => o.id);
@@ -148,11 +152,11 @@ async function attach(deal, L) {
     assocIds("deals", deal.id, "communications"), assocIds("deals", deal.id, "contacts"),
   ]);
   const [callR, emailR, taskR, noteR, commR, contactR] = await Promise.all([
-    batchRead("calls", callA.ids, ["hs_call_body", "hs_call_title", "hs_call_disposition", "hs_timestamp"]),
-    batchRead("emails", emailA.ids, ["hs_email_subject", "hs_email_text", "hs_email_html", "hs_email_direction", "hs_timestamp"]),
+    batchRead("calls", callA.ids, ["hs_call_body", "hs_call_title", "hs_call_disposition", "hs_timestamp", "hs_createdate", "hubspot_owner_id"]),
+    batchRead("emails", emailA.ids, ["hs_email_subject", "hs_email_text", "hs_email_html", "hs_email_direction", "hs_timestamp", "hs_createdate"]),
     batchRead("tasks", taskA.ids, ["hs_task_subject", "hs_task_status", "hs_timestamp"]),
-    batchRead("notes", noteA.ids, ["hs_note_body", "hs_timestamp", "hubspot_owner_id"]),
-    batchRead("communications", commA.ids, ["hs_communication_channel_type", "hs_communication_body", "hs_body_preview", "hs_timestamp"]),
+    batchRead("notes", noteA.ids, ["hs_note_body", "hs_timestamp", "hs_createdate", "hubspot_owner_id"]),
+    batchRead("communications", commA.ids, ["hs_communication_channel_type", "hs_communication_body", "hs_body_preview", "hs_timestamp", "hs_createdate"]),
     batchRead("contacts", contactA.ids, ["firstname", "lastname", "outcome", "age_range", "nationality", "lead_stage"]),
   ]);
 
@@ -190,14 +194,14 @@ async function attach(deal, L) {
     available, channelSeen, commCount: commR.records.length,
     calls: newestFirst(callR.records).map((x) => ({
       outcome: L.dispoLabel[x.properties.hs_call_disposition] || x.properties.hs_call_disposition || "",
-      when: Date.parse(x.properties.hs_timestamp || 0),
+      when: when(x.properties),
       note: strip(x.properties.hs_call_body || x.properties.hs_call_title),
     })),
     emails: newestFirst(emailR.records.filter((e) => (e.properties.hs_email_direction || "") !== "INCOMING_EMAIL"))
-      .map((x) => ({ when: Date.parse(x.properties.hs_timestamp || 0), subject: x.properties.hs_email_subject || "", body: strip(x.properties.hs_email_text || x.properties.hs_email_html) })),
+      .map((x) => ({ when: when(x.properties), subject: x.properties.hs_email_subject || "", body: strip(x.properties.hs_email_text || x.properties.hs_email_html) })),
     tasks: taskR.records.map((x) => x.properties),
-    notes: newestFirst(noteR.records).map((x) => ({ when: Date.parse(x.properties.hs_timestamp || 0), body: strip(x.properties.hs_note_body), ownerId: x.properties.hubspot_owner_id })),
-    whatsapps: newestFirst(wa).map((x) => ({ when: Date.parse(x.properties.hs_timestamp || 0), body: strip(x.properties.hs_communication_body || x.properties.hs_body_preview) })),
+    notes: newestFirst(noteR.records).map((x) => ({ when: when(x.properties), body: strip(x.properties.hs_note_body), ownerId: x.properties.hubspot_owner_id })),
+    whatsapps: newestFirst(wa).map((x) => ({ when: when(x.properties), body: strip(x.properties.hs_communication_body || x.properties.hs_body_preview) })),
     contact: contact ? {
       name: [contact.firstname, contact.lastname].filter(Boolean).join(" ").trim(),
       outcome: contact.outcome || null, ageRange: contact.age_range || null,
