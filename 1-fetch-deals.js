@@ -171,6 +171,36 @@ async function attach(deal, L) {
     return !/SMS|LINKEDIN/.test(ch);
   });
 
+  // The client details are sometimes written on the CONTACT instead of the deal, so
+  // the contact's own notes and call log are read too. Without this the audit asked
+  // for details that already existed one record across.
+  let contactNotes = [], contactCalls = [], contactSideOk = false;
+  const contactId = contactA.ids[0];
+  if (SETTINGS.CHECK_CONTACT_FOR_DETAILS && contactId) {
+    try {
+      const [cnA, ccA] = await Promise.all([
+        assocIds("contacts", contactId, "notes"),
+        assocIds("contacts", contactId, "calls"),
+      ]);
+      const cap = SETTINGS.CONTACT_RECORDS_TO_READ || 25;
+      const [cnR, ccR] = await Promise.all([
+        batchRead("notes", cnA.ids.slice(0, cap), ["hs_note_body", "hs_body_preview", "hs_timestamp", "hs_createdate", "hubspot_owner_id"]),
+        batchRead("calls", ccA.ids.slice(0, cap), ["hs_call_body", "hs_call_title", "hs_call_disposition", "hs_timestamp", "hs_createdate", "hubspot_owner_id"]),
+      ]);
+      contactSideOk = (cnA.ok && cnR.ok) || (ccA.ok && ccR.ok);
+      contactNotes = newestFirst(cnR.records).map((x) => ({
+        id: x.id, when: when(x.properties),
+        body: strip(x.properties.hs_note_body || x.properties.hs_body_preview),
+        ownerId: String(x.properties.hubspot_owner_id || ""),
+      }));
+      contactCalls = newestFirst(ccR.records).map((x) => ({
+        id: x.id, when: when(x.properties),
+        outcome: L.dispoLabel[x.properties.hs_call_disposition] || x.properties.hs_call_disposition || "",
+        note: strip(x.properties.hs_call_body || x.properties.hs_call_title),
+      }));
+    } catch (e) { /* contact side unreadable: the checks stay silent about it */ }
+  }
+
   const p = deal.properties;
   const label = L.stageLabel[p.dealstage] || p.dealstage;
   const contact = contactR.records[0]?.properties || null;
@@ -196,7 +226,10 @@ async function attach(deal, L) {
     emails: newestFirst(emailR.records.filter((e) => (e.properties.hs_email_direction || "") !== "INCOMING_EMAIL"))
       .map((x) => ({ when: when(x.properties), subject: x.properties.hs_email_subject || "", body: strip(x.properties.hs_email_text || x.properties.hs_email_html) })),
     tasks: taskR.records.map((x) => x.properties),
+    contactSideAvailable: contactSideOk,
     notes: newestFirst(noteR.records).map((x) => ({ when: when(x.properties), body: strip(x.properties.hs_note_body), ownerId: x.properties.hubspot_owner_id })),
+    contactId: contactId || null,
+    contactNotes, contactCalls,
     whatsapps: newestFirst(wa).map((x) => ({ when: when(x.properties), body: strip(x.properties.hs_communication_body || x.properties.hs_body_preview) })),
     contact: contact ? {
       name: [contact.firstname, contact.lastname].filter(Boolean).join(" ").trim(),
