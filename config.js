@@ -172,8 +172,10 @@ const SETTINGS = {
   // ---- rules ----
   // Close date must not be in the past, in every stage EXCEPT these:
   CLOSEDATE_SKIP_STAGES: ["LOST"],
-  // Follow-up task required in every stage EXCEPT these:
-  TASK_SKIP_STAGES: ["LOST"],
+  // Follow-up task required in every stage EXCEPT these.
+  // WON is skipped too: once payment is made and the sale is closed there is nothing
+  // left for the consultant to chase — the case managers take it from there.
+  TASK_SKIP_STAGES: ["LOST", "WON"],
   // A completed task is not a scheduled follow-up. Also flag when every open task is
   // overdue by more than the grace period (set CHECK_TASK_OVERDUE false to ignore).
   CHECK_TASK_OVERDUE: true,
@@ -210,6 +212,12 @@ const SETTINGS = {
   CHECK_MARKETING: true,
   CHECK_PIPELINE_MATCH: true,     // AI: is the pipeline right for what was discussed
   CHECK_CLIENT_INTENT: true,      // AI: client said they cannot proceed but deal is still active
+
+  // Consultants sometimes write the client details on the CONTACT rather than the
+  // deal — in the contact's notes or its call log. Without this the audit reported
+  // "no client details" on cases where the work had actually been done.
+  CHECK_CONTACT_FOR_DETAILS: true,
+  CONTACT_RECORDS_TO_READ: 25,   // most recent notes / calls read per contact
 
   // When the client details are typed into the CALL DESCRIPTION instead of a note,
   // copy them into a proper note on the deal automatically (live runs only).
