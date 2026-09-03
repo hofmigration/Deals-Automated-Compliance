@@ -105,8 +105,8 @@ async function main() {
     // if a live copy fails, the consultant is asked for it instead (see script 5).
     try {
       const r = await copyIfNeeded(d, OWNER_NAME[d.ownerId] || "the consultant", SETTINGS.DRY_RUN);
-      if (r?.copied) { detailsCopied++; console.log(`  copied client details into a note on deal ${d.id}`); }
-      if (r?.wouldCopy) { detailsCopied++; console.log(`  would copy client details into a note on deal ${d.id} (${r.chars} chars)`); }
+      if (r?.copied) { detailsCopied++; console.log(`  copied client details onto deal ${d.id} from ${r.from}`); }
+      if (r?.wouldCopy) { detailsCopied++; console.log(`  would copy client details onto deal ${d.id} from ${r.from} (${r.chars} chars)`); }
     } catch (e) {
       d.detailsCopyFailed = true;
       console.log(`copy failed on deal ${d.id}: ${e.message} — the consultant will be asked instead`);
