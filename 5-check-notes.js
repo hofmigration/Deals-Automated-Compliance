@@ -56,11 +56,26 @@ function looksLikePaymentProof(body) {
 //    associate professor / he wanted to know about the USA EB-2 NIW..."
 // That still counts as recorded, so it is accepted here and can be copied into a
 // proper deal note automatically by script 11.
+// Where the client details actually are, in order of preference. Consultants write
+// them in all four of these places, so all four are searched — otherwise the audit
+// asks for details that already exist one record across.
+//   note         the right place: a note on the deal
+//   call         the deal's call description
+//   contact-note a note on the linked contact
+//   contact-call a call description on the linked contact
 function findClientDetails(d) {
   const noteHit = (d.notes || []).filter((n) => !isComplianceNote(n)).find((n) => looksLikeClientDetails(n.body));
-  if (noteHit) return { where: "note", text: noteHit.body, call: null };
+  if (noteHit) return { where: "note", label: "a note on the deal", text: noteHit.body, call: null };
+
   const callHit = (d.calls || []).find((c) => looksLikeClientDetails(c.note));
-  if (callHit) return { where: "call", text: callHit.note, call: callHit };
+  if (callHit) return { where: "call", label: "the call description on the deal", text: callHit.note, call: callHit };
+
+  const cNote = (d.contactNotes || []).filter((n) => !isComplianceNote(n)).find((n) => looksLikeClientDetails(n.body));
+  if (cNote) return { where: "contact-note", label: "a note on the contact", text: cNote.body, call: null };
+
+  const cCall = (d.contactCalls || []).find((c) => looksLikeClientDetails(c.note));
+  if (cCall) return { where: "contact-call", label: "the call log on the contact", text: cCall.note, call: cCall };
+
   return null;
 }
 
@@ -71,14 +86,22 @@ module.exports = function checkNotes(d) {
 
   if (SETTINGS.CHECK_DETAILS_NOTE && d.stage && !SETTINGS.DETAILS_NOTE_SKIP_STAGES.includes(d.stage)) {
     const found = findClientDetails(d);
-    if (!found && d.available.calls) {
-      // nowhere at all: neither a note nor a call description -> ask the consultant
-      issues.push({ area: "details", problem: "No client details recorded on the deal", action: "add a note with the full client details" });
-    } else if (found && found.where === "call") {
-      // in the call description: the system copies it into a note, so nothing to ask.
-      // But if copying is switched off, or the copy failed, the consultant is asked.
+    if (!found) {
+      // Genuinely nowhere: not on the deal, and not on the contact either. Only say
+      // this when the contact side was actually readable, so an unreadable contact is
+      // never reported as missing work.
+      const looked = d.available.calls && (!SETTINGS.CHECK_CONTACT_FOR_DETAILS || d.contactSideAvailable !== false);
+      if (looked)
+        issues.push({ area: "details", problem: "No client details recorded anywhere on the deal or the contact",
+          action: "add a note with the full client details on the deal",
+          risk: "Avoid the case manager rebuilding the client picture from scratch. Whoever picks this up next has nothing to work from." });
+    } else if (found.where !== "note") {
+      // Recorded, but in the wrong place. The system copies it onto the deal, so
+      // nothing is asked — unless copying is off or the copy failed.
       if (!SETTINGS.COPY_CLIENT_DETAILS_TO_NOTE || d.detailsCopyFailed)
-        issues.push({ area: "details", problem: "Client details are in the call description, not in a note", action: "add the client details as a note on the deal" });
+        issues.push({ area: "details", problem: `Client details are in ${found.label}, not in a note on the deal`,
+          action: "add the client details as a note on the deal",
+          risk: "Details kept on the contact are invisible to anyone working the deal, which is where the case is actually handled." });
     }
   }
 
