@@ -15,7 +15,7 @@ const { hub } = require("./0-hubspot");
 const { SETTINGS } = require("./config");
 const { findClientDetails } = require("./5-check-notes");
 
-const MARKER = "Client details (copied from the call log)";
+const MARKER = "Client details (copied by compliance)";
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -29,14 +29,17 @@ async function copyIfNeeded(d, ownerName, dryRun = false) {
   if (alreadyCopied(d)) return null;
 
   const found = findClientDetails(d);
-  if (!found || found.where !== "call") return null;      // nothing to copy, or already a note
-  if (dryRun) return { wouldCopy: true, chars: found.text.length };
+  // already a note on the deal: nothing to do. Anything else — the deal's call log, or
+  // a note or call on the contact — gets copied onto the deal where the work happens.
+  if (!found || found.where === "note") return null;
+  if (dryRun) return { wouldCopy: true, chars: found.text.length, from: found.label };
 
   const dt = found.call?.when ? new Date(found.call.when).toISOString().slice(0, 10) : "";
+  const source = found.label || "another record";
   const lines = String(found.text).split(/\s*(?:\r?\n|\s\/\s)\s*/).filter(Boolean);
   const body =
     `<div><p style="margin:0;"><strong>${MARKER}</strong></p>` +
-    `<p style="margin:0;color:#7c8aa5;font-size:12px;">Logged by ${esc(ownerName)}${dt ? ` on ${dt}` : ""}</p>` +
+    `<p style="margin:0;color:#7c8aa5;font-size:12px;">From ${esc(source)}, logged by ${esc(ownerName)}${dt ? ` on ${dt}` : ""}</p>` +
     `<p style="margin:0;">&nbsp;</p>` +
     lines.map((l) => `<p style="margin:0;">${esc(l.trim())}</p>`).join("") +
     `</div>`;
@@ -49,7 +52,7 @@ async function copyIfNeeded(d, ownerName, dryRun = false) {
     },
     associations: [{ to: { id: String(d.id) }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 214 }] }],
   });
-  return { copied: true, chars: found.text.length };
+  return { copied: true, chars: found.text.length, from: found.label };
 }
 
 module.exports = { copyIfNeeded, MARKER, alreadyCopied };
