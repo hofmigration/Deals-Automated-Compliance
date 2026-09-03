@@ -26,6 +26,7 @@ const good = (o = {}) => ({
   stageLabel: "Qualified Client", stage: "QUALIFIED",
   closedate: now + 10 * DAY, reason: null, dealAgeRange: "32-40", createdate: now - 5 * DAY,
   channelSeen: {}, commCount: 1,
+  contactNotes: [], contactCalls: [], contactSideAvailable: true,
   calls: [{ outcome: "Connected", when: now - 3600000, note: "spoke with client about Canada PR, qualified" }],
   emails: [{ when: now - 1800000, subject: "Canada PR process", body: "Hi Ahmed, here are the process details." }],
   tasks: [{ hs_task_subject: "Follow up call", hs_task_status: "NOT_STARTED", hs_timestamp: new Date(now + 3 * DAY).toISOString() }],
@@ -56,6 +57,12 @@ const SCENARIOS = [
   // --- follow-up task ---
   ["no follow-up task is flagged", good({ tasks: [] }), "No follow-up task"],
   ["task not required on Deal Lost", good({ stage: "LOST", stageLabel: "Deal Lost", reason: "Job Loss", tasks: [] }), "!follow-up task"],
+  ["task not required on Payment Made/Deal Won",
+    good({ stage: "WON", stageLabel: "Payment Made/Deal Won", tasks: [],
+           notes: [{ when: now, body: DETAILS_NOTE, ownerId: "1" }, { when: now, body: PAYMENT_NOTE, ownerId: "1" }] }), "!follow-up task"],
+  ["won deal still needs proof of payment even with no task",
+    good({ stage: "WON", stageLabel: "Payment Made/Deal Won", tasks: [],
+           notes: [{ when: now, body: DETAILS_NOTE, ownerId: "1" }] }), "no proof of payment"],
   ["our own compliance task does not count", good({ tasks: [{ hs_task_subject: "[Compliance] Ahmed — set the close date" }] }), "No follow-up task"],
 
   // --- follow-up task: must be OPEN and scheduled ---
@@ -166,6 +173,19 @@ const SCENARIOS = [
     good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client, will call again" }] }), "No client details recorded"],
   ["hours box is read correctly", null, "HOURS"],
   ["client details copy helper finds them in the call log", null, "COPY_FIND"],
+
+  // --- details written on the CONTACT instead of the deal ---
+  ["details in a note on the CONTACT are found, not reported missing",
+    good({ notes: [], contactNotes: [{ body: DETAILS_NOTE, ownerId: "1" }] }), "!client details"],
+  ["details in the CONTACT call log are found",
+    good({ notes: [], contactCalls: [{ note: DETAILS_NOTE, when: now }] }), "!client details"],
+  ["details on the contact ARE flagged when copying is off", null, "CONTACT_NO_COPY"],
+  ["nothing anywhere says so plainly",
+    good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client" }] }), "anywhere on the deal or the contact"],
+  ["an unreadable contact is never reported as missing work",
+    good({ notes: [], contactSideAvailable: false,
+      calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client" }] }), "!client details"],
+  ["details are searched in the right order", null, "DETAIL_ORDER"],
   ["details nowhere at all is flagged",
     good({ notes: [], calls: [{ outcome: "Connected", when: now - 3600000, note: "called the client" }] }), "No client details recorded"],
   ["details in the call log with copying ON is not flagged",
@@ -255,6 +275,30 @@ const SCENARIOS = [
       console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
       if (!ok) console.log("        " + detail.join("; "));
       ok ? pass++ : fail++;
+      continue;
+    }
+    if (must === "CONTACT_NO_COPY") {
+      const { SETTINGS: S } = require("./config");
+      const keep = S.COPY_CLIENT_DETAILS_TO_NOTE;
+      S.COPY_CLIENT_DETAILS_TO_NOTE = false;
+      const out = require("./5-check-notes")(good({ notes: [], contactNotes: [{ body: DETAILS_NOTE, ownerId: "1" }] }));
+      S.COPY_CLIENT_DETAILS_TO_NOTE = keep;
+      const ok = out.some((i) => /a note on the contact, not in a note on the deal/.test(i.problem));
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+      if (!ok) console.log(`        got: ${out.map((i) => i.problem).join("; ")}`);
+      ok ? pass++ : fail++;
+      continue;
+    }
+    if (must === "DETAIL_ORDER") {
+      const { findClientDetails } = require("./5-check-notes");
+      const base = { notes: [], calls: [], contactNotes: [], contactCalls: [], available: { notes: true, calls: true }, contactSideAvailable: true };
+      const both = findClientDetails({ ...base,
+        notes: [{ body: DETAILS_NOTE, ownerId: "1" }],
+        contactNotes: [{ body: DETAILS_NOTE, ownerId: "1" }] });
+      const contactOnly = findClientDetails({ ...base, contactCalls: [{ note: DETAILS_NOTE, when: now }] });
+      // the deal note wins when both exist, and the contact call is still found alone
+      const ok = both?.where === "note" && contactOnly?.where === "contact-call";
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`); ok ? pass++ : fail++;
       continue;
     }
     if (must === "COPY_FIND") {
