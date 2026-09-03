@@ -54,8 +54,8 @@ Date)" vs "Postponed"). Stages are matched on the **normalised label**, so both 
 |---|---|
 | **Close date** | Must not be in the past. **Deal Lost is exempt.** |
 | **Reason** | Postponed and Deal Lost must have a Won/Postponed/Lost reason, and it must **not** be `Opportunity`. |
-| **Follow-up task** | An **open** task must be scheduled in every stage **except Deal Lost**. A completed task does not count, and an open task overdue by more than 2 days is flagged separately. Our `[Compliance]` tasks never count. |
-| **Client details note** | A separate note with full client details (age, education, experience, family, reason). Free-form, so judged on substance. |
+| **Follow-up task** | An **open** task must be scheduled in every stage **except Deal Lost and Payment Made/Deal Won** (a closed sale has nothing left to chase). A completed task does not count, and an open task overdue by more than 2 days is flagged separately. Our `[Compliance]` tasks never count. |
+| **Client details** | Full client details must be recorded (age, education, experience, family, reason). Free-form, so judged on substance. Searched in **four places**, because consultants use all of them. |
 | **Proof of payment** | Required on **Payment Made/Deal Won** — the fee note with figures. |
 | **Connected call** | Must have a brief description, and an **email** logged after it. **No WhatsApp needed.** |
 | **WhatsApp timing** | When required, it must arrive within **24h** of the call. Spelling check is off. |
@@ -68,6 +68,31 @@ Emails and WhatsApps only count when logged **after** the call, otherwise old ac
 would satisfy today's call. Only the **3 most important** issues go in the note.
 
 ---
+
+## Client details: four places, one destination
+
+Consultants record the client details wherever is convenient. All four are searched, in
+this order:
+
+| Where | What happens |
+|---|---|
+| A note on the **deal** | correct — nothing to do |
+| The **deal's** call description | copied onto the deal as a note |
+| A note on the **contact** | copied onto the deal as a note |
+| The **contact's** call log | copied onto the deal as a note |
+| Nowhere | the consultant is asked for them |
+
+Before this, only the deal was searched — so details written on the contact were reported
+as missing, which is a false flag on work that had actually been done.
+
+The copied note says where it came from, e.g. *"From a note on the contact, logged by
+Ambreen Sayed on 2026-08-18"*, and is never copied twice.
+
+**If the contact record cannot be read**, nothing is reported as missing. An unreadable
+lookup is never treated as missing work.
+
+Turn the contact search off with `CHECK_CONTACT_FOR_DETAILS: false`, or the copying with
+`COPY_CLIENT_DETAILS_TO_NOTE: false` (which switches it back to asking instead).
 
 ## Running it
 
