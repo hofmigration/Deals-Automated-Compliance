@@ -94,6 +94,30 @@ lookup is never treated as missing work.
 Turn the contact search off with `CHECK_CONTACT_FOR_DETAILS: false`, or the copying with
 `COPY_CLIENT_DETAILS_TO_NOTE: false` (which switches it back to asking instead).
 
+## The emails
+
+Two emails, one design — navy header, colour-coded stat tiles, and a card per item that
+says what to do and what to avoid.
+
+**The roundup to Ali** carries the totals: deals audited, urgent, backlogs, deals flagged.
+Findings are **grouped by consultant and problem**, because a consultant with 20 findings
+that are the same three problems is one conversation, not twenty reminders:
+
+| Group size | Treated as |
+|---|---|
+| 8 or more | an **escalation** — a backlog to plan |
+| 4 to 7 | one **grouped** item naming the oldest deals |
+| 1 to 3 | listed **deal by deal** |
+
+Below the threshold, findings are **counted rather than listed**, so the mail stays
+readable and nothing is hidden. Each deal contributes its **worst issue only**, no
+consultant fills more than 3 individual slots, and the whole list is capped at 30 items.
+
+**Each consultant's own email** uses the same cards, their deals only, urgent first.
+
+The HTML is also written to the run's Artifacts, so a dry run shows exactly what would
+be sent.
+
 ## Running it
 
 **Actions → Deal Compliance → Run workflow.** All dropdowns:
