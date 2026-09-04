@@ -166,6 +166,37 @@ const SETTINGS = {
   TASK_DUE_IN_HOURS: 24,
 
   MAX_ISSUES_PER_DEAL: 3,
+
+  // ---- how serious each kind of finding is ----
+  // Without this every finding looked equally important, so a missing WhatsApp read
+  // the same as a won deal with no proof of payment.
+  SEVERITY_BY_AREA: {
+    intent: "critical",     // the client has said they cannot proceed
+    payment: "critical",    // marked won with no proof of payment
+    control: "critical",
+    pipeline: "high",       // in the wrong pipeline for what was discussed
+    reason: "high",         // closed with no reason, or "Opportunity" as a reason
+    closedate: "high",
+    call: "high",
+    email: "high",
+    task: "high",
+    quality: "high",
+    details: "medium",
+    whatsapp: "medium",
+    marketing: "medium",
+    calldesc: "medium",
+    data: "low",
+  },
+
+  // ---- GROUPING: one problem, not twenty lines ----
+  // A single consultant once produced 20 findings that were the same three problems
+  // over and over. That is one conversation, not twenty reminders.
+  CLUSTER_MIN: 4,             // same consultant + same problem -> one grouped item
+  ESCALATE_MIN: 8,            // a group this big is systemic and gets escalated
+  CLUSTER_SHOW_CASES: 5,      // deals named inside a group (the oldest first)
+  MAX_ITEMS_PER_OWNER: 3,     // no one person may fill the report
+  MAX_ITEMISED: 30,           // hard ceiling on listed items
+  ITEMISE_FROM: "high",       // below this, findings are counted rather than listed
   TZ_OFFSET_HOURS: 5,
   GEMINI_MODEL: "gemini-flash-lite-latest",
 
