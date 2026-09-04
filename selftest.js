@@ -10,6 +10,8 @@ const checkNotes = require("./5-check-notes");
 const checkComms = require("./6-check-comms");
 const checkMarketing = require("./7-check-marketing");
 const { composeNote } = require("./9-note");
+const { group, groupSentence } = require("./12-group");
+const { buildReport, buildConsultantEmail } = require("./13-report");
 const { SETTINGS, STAGE_NAME, stageKey } = require("./config");
 
 const DAY = 86400000, now = Date.now();
@@ -380,7 +382,47 @@ const SCENARIOS = [
     }
   }
 
-  console.log(`\n${pass} passed, ${fail} failed`);
+  // ---- the report: grouped, with numbers, not a wall of text ----
+{
+  const check = (label, ok, detail = "") => {
+    console.log(`${ok ? "PASS" : "FAIL"}  ${label}${ok || !detail ? "" : `\n        ${detail}`}`);
+    ok ? pass++ : fail++;
+  };
+  const mk = (n, owner, problem, sev) => Array.from({ length: n }, (_, i) => ({
+    caseId: `${owner}${i}`, caseName: `Client ${i}`, owner, stage: "CCL Sent",
+    severity: sev, area: "closedate", problem, action: "update the close date", risk: "avoid a stale pipeline" }));
+
+  const g = group([
+    ...mk(20, "Ahlam Khandoq", "Close date is in the past and no follow-up task is scheduled", "high"),
+    ...mk(6, "Patrecia Haddad", "Call was No answer but no WhatsApp logged", "medium"),
+    ...mk(2, "Ayesha Anum", "Contact outcome is not Deal Created", "medium"),
+    ...mk(1, "Samra Goraya", "Deal marked won but no proof of payment logged", "critical"),
+  ]);
+  check("20 repeated findings for one consultant become one escalation",
+    g.escalations.length === 1 && g.escalations[0].count === 20);
+  check("the escalation names the consultant", g.escalations[0].owner === "Ahlam Khandoq");
+  check("a group of six is grouped, not escalated", g.grouped.length === 1 && g.grouped[0].count === 6);
+  check("a pair stays individual", g.singles.length === 3);
+  check("29 findings become 5 items", g.escalations.length + g.grouped.length + g.singles.length === 5);
+  check("the escalation reads as a backlog", /will not clear deal by deal/.test(groupSentence(g.escalations[0])));
+
+  const html = buildReport({ ...g, counted: { "Close date is in the past": 88 },
+    scanned: 412, audited: 268, byStage: { QUALIFIED: 96, CCL_SENT: 74 }, dealsCopied: 7, dryRun: false });
+  check("the report shows the totals", /268/.test(html) && /DEALS AUDITED/i.test(html));
+  check("the report shows the urgent count", /URGENT/.test(html) && /1<\/div>/.test(html));
+  check("the report leads with the backlog", /Plan these/.test(html));
+  check("the report shows what was counted rather than listed", /Background/.test(html) && /88/.test(html));
+  check("the report shows the pipeline", /Where the pipeline sits/.test(html));
+  check("the report mentions the details it copied", /copied onto the deal automatically/.test(html));
+  check("the report says what to do and what to avoid", />DO</.test(html) && />AVOID</.test(html));
+  check("the report escapes text", !/<script/i.test(html));
+
+  const one = buildConsultantEmail("Ahlam Khandoq", g.singles.length ? g.singles : mk(2, "Ahlam Khandoq", "x", "high"));
+  check("the consultant email greets them by first name", /Hi Ahlam/.test(one));
+  check("the consultant email says not to reply", /do not reply/i.test(one));
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) { console.log(`\nA deal rule stopped working. Fix it before auditing for real.`); process.exit(1); }
   console.log(`\nExample note:\n  ${composeNote("Ayesha Anum", [
     { action: "update the close date" }, { action: "schedule a follow-up task on the deal" },
