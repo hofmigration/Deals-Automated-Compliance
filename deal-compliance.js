@@ -17,6 +17,8 @@ const checkPipeline = require("./8-check-pipeline");
 const checkClientIntent = require("./10-check-client-intent");
 const { copyIfNeeded } = require("./11-copy-client-details");
 const { composeNote, postNote, createComplianceTask } = require("./9-note");
+const { group, groupSentence } = require("./12-group");
+const { buildReport, buildConsultantEmail } = require("./13-report");
 
 const OWNER_NAME = Object.fromEntries(SELECTED_OWNERS.map((o) => [o.id, o.name]));
 
@@ -131,6 +133,8 @@ async function main() {
     }
     if (!issues.length) continue;
 
+    // give every finding a severity, so the report can order and colour them
+    for (const i of issues) i.severity = i.severity || SETTINGS.SEVERITY_BY_AREA[i.area] || "medium";
     issues.sort((a, b) => (PRIORITY[a.area] || 99) - (PRIORITY[b.area] || 99));
     const top = issues.slice(0, SETTINGS.MAX_ISSUES_PER_DEAL);
     const ownerName = OWNER_NAME[d.ownerId] || `owner ${d.ownerId}`;
@@ -198,19 +202,103 @@ async function main() {
 
   if (SETTINGS.DRY_RUN) { console.log(`\nDRY RUN: nothing posted or emailed.`); return; }
 
-  // ---- emails ----
-  const byOwner = {}; for (const f of flagged) (byOwner[f.ownerId] ||= []).push(f);
+  // ---------------------------------------------------------------------
+  // THE REPORT — grouped, so one consultant's repetition is one item
+  // A single consultant once produced 20 findings that were the same three problems
+  // over and over. Grouping turns that into one conversation.
+  // ---------------------------------------------------------------------
+  const RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+  const threshold = RANK[SETTINGS.ITEMISE_FROM] ?? 1;
+  const counted = {};
+  const countIt = (f) => { const k = f.problem.split(" (")[0].split(" — ")[0]; counted[k] = (counted[k] || 0) + 1; };
+
+  // one line per deal, its worst issue; everything else counted
+  const flat = [];
+  for (const f of flagged) {
+    const worst = f.top[0];
+    if (!worst) continue;
+    for (const extra of f.top.slice(1)) countIt({ problem: extra.problem });
+    flat.push({
+      caseId: f.id, caseName: f.name, owner: f.ownerName, stage: STAGE_NAME[f.stage] || f.stageLabel,
+      area: worst.area, severity: worst.severity || "medium",
+      problem: worst.problem, action: worst.action, risk: worst.risk,
+    });
+  }
+
+  const forGrouping = [];
+  for (const f of flat) {
+    if ((RANK[f.severity] ?? 9) > threshold) { countIt(f); continue; }
+    forGrouping.push(f);
+  }
+
+  let { escalations, grouped, singles } = group(forGrouping);
+
+  // no single consultant may fill the report
+  const ownerCount = new Map(); const keep = [];
+  for (const f of singles) {
+    const o = f.owner || "unassigned";
+    const c = ownerCount.get(o) || 0;
+    if (c >= SETTINGS.MAX_ITEMS_PER_OWNER) { countIt(f); continue; }
+    ownerCount.set(o, c + 1); keep.push(f);
+  }
+  singles = keep;
+
+  const allItems = [...escalations, ...grouped, ...singles];
+  if (allItems.length > SETTINGS.MAX_ITEMISED) {
+    const kept = new Set(allItems.slice(0, SETTINGS.MAX_ITEMISED));
+    const dropped = allItems.length - SETTINGS.MAX_ITEMISED;
+    escalations = escalations.filter((x) => kept.has(x));
+    grouped = grouped.filter((x) => kept.has(x));
+    singles = singles.filter((x) => kept.has(x));
+    counted[`${dropped} further item(s) beyond the ${SETTINGS.MAX_ITEMISED} shown`] = dropped;
+  }
+
+  const byStage = {};
+  for (const f of flagged) byStage[f.stage] = (byStage[f.stage] || 0) + 1;
+
+  if (escalations.length) {
+    console.log(`\nESCALATE (${escalations.length}) — a backlog, not a reminder:`);
+    for (const g of escalations) console.log(`  ${groupSentence(g)}\n     -> ${g.action}`);
+  }
+  if (grouped.length) {
+    console.log(`\nGROUPED (${grouped.length}):`);
+    for (const g of grouped) console.log(`  ${groupSentence(g)}`);
+  }
+  if (singles.length) {
+    console.log(`\nINDIVIDUAL DEALS (${singles.length}):`);
+    for (const f of singles) console.log(`  [${f.severity}] ${f.caseName} — ${f.owner}\n     ${f.problem}`);
+  }
+  const countedTotal = Object.values(counted).reduce((a, b) => a + b, 0);
+  if (countedTotal) {
+    console.log(`\nCounted, not listed (${countedTotal}):`);
+    for (const [k, v] of Object.entries(counted).sort((a, b) => b[1] - a[1]).slice(0, 12)) console.log(`  ${String(v).padStart(5)}  ${k}`);
+  }
+
+  const html = buildReport({ escalations, grouped, singles, counted,
+    scanned: deals.length, audited, byStage, dealsCopied: detailsCopied, dryRun: SETTINGS.DRY_RUN });
+  require("fs").writeFileSync("deal-compliance-report.html", html);
+  console.log(`\nWrote deal-compliance-report.html (download it from this run's Artifacts).`);
+
+  if (SETTINGS.DRY_RUN) { console.log(`\nDRY RUN: nothing posted, no email sent.`); return; }
+
+  // ---- consultant emails, same design ----
+  const byOwnerItems = {};
+  for (const f of flagged) (byOwnerItems[f.ownerId] ||= []).push(f);
   const emails = await ownerEmails();
-  for (const [ownerId, items] of Object.entries(byOwner)) {
+  for (const [ownerId, items] of Object.entries(byOwnerItems)) {
     const to = emails[ownerId], ownerName = OWNER_NAME[ownerId] || ownerId;
     if (!to) { console.log(`No email for ${ownerName}`); continue; }
-    const list = items.map((it) => `<p><a href="${dealLink(it.id)}">${it.name}</a> (${STAGE_NAME[it.stage]})<ul>${it.top.map((i) => `<li>${i.problem}</li>`).join("")}</ul></p>`).join("");
-    await sendEmail(to, `[Automated] ${items.length} of your deals need attention`, `<p>Hi ${ownerName.split(" ")[0]},</p>${list}<p>Thank you.</p>`);
+    const cards = items.slice(0, 12).map((f) => ({
+      caseId: f.id, caseName: f.name, owner: ownerName, stage: STAGE_NAME[f.stage] || f.stageLabel,
+      severity: f.top[0]?.severity || "medium", problem: f.top[0]?.problem, action: f.top[0]?.action, risk: f.top[0]?.risk,
+    }));
+    await sendEmail(to, `[Automated] ${items.length} of your deals need attention`, buildConsultantEmail(ownerName, cards));
   }
-  const roundup = Object.entries(byOwner).map(([oid, items]) =>
-    `<h3>${OWNER_NAME[oid] || oid} (${items.length})</h3>` +
-    items.map((it) => `<p><a href="${dealLink(it.id)}">${it.name}</a>: ${it.top.map((i) => i.problem).join("; ")}</p>`).join("")).join("");
-  await sendEmail(SETTINGS.ALI_EMAIL, `Deal compliance — ${flagged.length} flagged`, roundup || "<p>Nothing flagged.</p>");
+
+  const urgentCount = [...escalations, ...grouped, ...singles].filter((x) => x.severity === "critical").length;
+  await sendEmail(SETTINGS.ALI_EMAIL,
+    `Deal compliance — ${flagged.length} deals flagged, ${urgentCount} urgent`, html);
+  console.log(`Report sent to ${SETTINGS.ALI_EMAIL}`);
 }
 
 main().catch((e) => { console.error("FATAL:", e); process.exit(1); });
